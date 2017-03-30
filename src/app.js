@@ -104,9 +104,9 @@ export class App extends Component {
             image={uri}
             onCrop={this.handleCrop}
             initialWidth=
-              {imageSize.width < 500 && IMAGE_SIZE.width < 250 ? 250 : IMAGE_SIZE.width }
+              {imageSize.width === 500 && IMAGE_SIZE.width < 250 ? 250 : IMAGE_SIZE.width }
             initialHeight=
-              {imageSize.height < 500 && IMAGE_SIZE.height < 250 ? 250 : IMAGE_SIZE.height}
+              {imageSize.height === 500 && IMAGE_SIZE.height < 250 ? 250 : IMAGE_SIZE.height}
             minWidth={imageSize.width}
             minHeight={imageSize.height}
             // postCropWidth={300}

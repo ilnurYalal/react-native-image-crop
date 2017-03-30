@@ -7,20 +7,17 @@ import {
   PanResponder,
   TouchableOpacity,
   Text,
+  ImageEditor,
+  ImageStore
 } from 'react-native';
 const BORDER_WIDTH = 1;
 const ACTIVE_BORDER_WIDTH = 2;
 
 type ActiveSide = 'Top' | 'Right' | 'Bottom' | 'Left';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const WINDOW_WIDTH = width;
-const WINDOW_HEIGHT = height;
-const IMAGE_SIZE = {
-  width: WINDOW_WIDTH - 40,
-  height: WINDOW_HEIGHT - 150
-};
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -30,8 +27,6 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   image: {
-    width: IMAGE_SIZE.width,
-    height: IMAGE_SIZE.height,
     flexDirection: 'row',
     resizeMode: 'stretch',
   },
@@ -170,28 +165,47 @@ const styles = StyleSheet.create({
   }
 });
 
+type ImageOffset = {
+  x: number;
+  y: number;
+};
+
+type ImageSize = {
+  width: number;
+  height: number;
+};
+
+type ImageCropData = {
+  offset: ImageOffset;
+  size: ImageSize;
+  displaySize?: ?ImageSize;
+  resizeMode?: ?any;
+};
+
 export default class Crop extends Component {
   static propTypes = {
-    imageURI: PropTypes.string,
-    onChangeCropFrame: PropTypes.func,
+    image: PropTypes.string,
+    initialWidth: PropTypes.number,
+    initialHeight: PropTypes.number,
+    minWidth: PropTypes.number,
+    minHeight: PropTypes.number,
+    onCrop: PropTypes.func,
+    postCropWidth: PropTypes.number,
+    postCropHeight: PropTypes.number
   };
-  // state: Object;
-  // rectPanResponder: PanResponder;
-  // topPanResponder: PanResponder;
-  // bottomPanResponder: PanResponder;
-  // leftPanResponder: PanResponder;
-  // rightPanResponder: PanResponder;
-  // topRightPanResponder: PanResponder;
-  // bottomRightPanResponder: PanResponder;
-  // bottomLeftPanResponder: PanResponder;
-  // topLeftPanResponder: PanResponder;
-  // scale: number = 1;
+
+  static defaultProps = {
+    postCropWidth: 0,
+    postCropHeight: 0,
+  };
 
   constructor(props) {
     super(props);
     this.scale = Dimensions.get('window').scale;
     this.state = {
-      imageURI: props.imageURI,
+      image: props.image,
+      imageWidth: props.initialWidth,
+      imageHeight: props.initialHeight,
       responderLocked: false,
       style: {
         top: 20,
@@ -223,6 +237,7 @@ export default class Crop extends Component {
         width: Dimensions.get('window').width,
       },
     };
+    this.toRemoveImage = '';
   }
 
   componentWillMount() {
@@ -266,13 +281,7 @@ export default class Crop extends Component {
             top: this.state.initialPosition.top + gs.dy,
             left: this.state.initialPosition.left + gs.dx,
           },
-        }, () =>
-          this.props.onChangeCropFrame(
-            this.state.style.top,
-            this.state.style.left,
-            this.state.style.width,
-            this.state.style.height
-          ));
+        });
       },
     });
 
@@ -310,8 +319,8 @@ export default class Crop extends Component {
   }
 
   componentWillReceiveProps(newProps) {
-    if (newProps.imageURI !== this.props.imageURI) {
-      this.setState({ imageURI: newProps.imageURI });
+    if (newProps.image !== this.props.image) {
+      this.setState({ image: newProps.image });
     }
   }
 
@@ -323,15 +332,15 @@ export default class Crop extends Component {
     if (style.width > style.height) {
       size = style.height;
     }
-    if (top + size > IMAGE_SIZE.height) {
-      top = IMAGE_SIZE.height - size;
+    if (top + size > this.props.initialHeight) {
+      top = this.props.initialHeight - size;
     } else if (top < 0) {
       top = 0;
     }
     if (left < 0) {
       left = 0;
-    } else if (left + size > IMAGE_SIZE.width) {
-      left = IMAGE_SIZE.width - size;
+    } else if (left + size > this.props.initialWidth) {
+      left = this.props.initialHeight - size;
     }
     this.setState({
       style: {
@@ -372,7 +381,7 @@ export default class Crop extends Component {
         maxHeight: height,
       },
     });
-    this.props.onChangeCropFrame(height / 4, width / 4, width / 2, height / 2);
+    // this.props.onChangeCropFrame(height / 4, width / 4, width / 2, height / 2);
   };
 
   moveTop = (gs) => {
@@ -489,26 +498,60 @@ export default class Crop extends Component {
             ...passiveBordersStyle,
             ...moveStyles,
           },
-        }, () =>
-          this.props.onChangeCropFrame(
-            this.state.style.top,
-            this.state.style.left,
-            this.state.style.width,
-            this.state.style.height
-          ));
+        });
       },
     };
   };
 
+  onCrop = () => {
+    const cropData: ImageCropData = {
+      offset: {
+        x: this.props.minWidth / this.props.initialWidth * this.state.style.left,
+        y: this.props.minHeight / this.props.initialHeight * this.state.style.top
+      },
+      size: {
+        width: this.props.minWidth / this.props.initialWidth * this.state.style.width,
+        height: this.props.minHeight / this.props.initialHeight * this.state.style.height
+      },
+      // displaySize: {
+      //   width: this.props.postCropWidth,
+      //   height: this.props.postCropHeight,
+      // }
+    };
+    if (this.props.postCropWidth !== 0 && this.props.postCropHeight !== 0) {
+      cropData.displaySize = {
+        width: this.props.postCropWidth,
+        height: this.props.postCropHeight,
+      };
+    }
+    ImageEditor.cropImage(this.props.image, cropData, (uri) => {
+      console.info(uri);
+      if (this.toRemoveImage !== '') {
+        ImageStore.removeImageForTag(this.toRemoveImage);
+        this.toRemoveImage = '';
+      }
+      Image.getSize(uri, (imageWidth, imageHeight) => {
+        debugger;
+        this.props.onCrop(uri);
+        // this.setState({ imageWidth, imageHeight });
+        this.toRemoveImage = uri;
+      });
+    },
+      (error) => {
+        console.info(error);
+      });
+  };
+
   render() {
-    const { imageURI } = this.state;
+    const { image, imageWidth, imageHeight } = this.state;
     const backgroundColor = this.state.responderLocked ? 'white' : 'transparent';
     return (
       <View style={[styles.container, this.state.containerStyle]}>
         <Image
-          source={{ uri: imageURI }}
+          source={{ uri: image }}
           // source={require('img/img_background.jpg')}
-          style={styles.image}
+          style={[styles.image,
+            { width: imageWidth, height: imageHeight }]}
           onLayout={this.adjustSize}
         >
           <View style={[styles.fade, styles.fadeTop, { height: this.state.style.top }]} />

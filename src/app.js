@@ -6,8 +6,6 @@ import {
   Text,
   TouchableOpacity,
   Image,
-  ImageEditor,
-  ImageStore
 } from 'react-native';
 import { ImagePickerDialog } from './crop/ImagePicker';
 import Crop from './crop';
@@ -52,74 +50,19 @@ const styles = StyleSheet.create({
     // backgroundColor: 'orange'
   }
 });
-type ImageOffset = {
-  x: number;
-  y: number;
-};
 
-type ImageSize = {
-  width: number;
-  height: number;
-};
-
-type ImageCropData = {
-  offset: ImageOffset;
-  size: ImageSize;
-  displaySize?: ?ImageSize;
-  resizeMode?: ?any;
-};
 export class App extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      imageURI: null,
+      uri: null,
       imageSize: {
         width: 0,
         height: 0,
       },
-      cropFrame: {
-        top: 0,
-        left: 0,
-        width: 0,
-        height: 0
-      },
     };
-    this.toRemoveImage = '';
+    this.cropRef = null;
   }
-
-  onDone = () => {
-    const { imageSize, imageURI, cropFrame } = this.state;
-    const cropData: ImageCropData = {
-      offset: {
-        x: imageSize.width / IMAGE_SIZE.width * cropFrame.left,
-        y: imageSize.height / IMAGE_SIZE.height * cropFrame.top
-      },
-      size: {
-        width: imageSize.width / IMAGE_SIZE.width * cropFrame.width,
-        height: imageSize.height / IMAGE_SIZE.height * cropFrame.height
-      }
-    };
-    ImageEditor.cropImage(imageURI, cropData, (uri) => {
-      console.info(uri);
-      if (this.toRemoveImage !== '') {
-        ImageStore.removeImageForTag(this.toRemoveImage);
-        this.toRemoveImage = '';
-      }
-      Image.getSize(uri, (imageWidth, imageHeight) => {
-        this.setState({
-          imageSize: {
-            width: imageWidth,
-            height: imageHeight,
-          },
-          imageURI: uri,
-        });
-        this.toRemoveImage = uri;
-      });
-    },
-    (error) => {
-      console.info(error);
-    });
-  };
 
   onShowImagePicker = () => {
     ImagePickerDialog.show()
@@ -127,8 +70,12 @@ export class App extends Component {
       if (source) {
         console.info(source);
         Image.getSize(source.uri, (imageWidth, imageHeight) => {
+          if (imageWidth < 500 && imageHeight < 500) {
+            alert('please select the large image, min size is 500*500');
+            return;
+          }
           this.setState({
-            imageURI: source.uri,
+            uri: source.uri,
             imageSize: {
               width: imageWidth,
               height: imageHeight
@@ -139,22 +86,31 @@ export class App extends Component {
     });
   };
 
-  onChangeCropFrame = (top, left, width, height) => {
-    this.setState({
-      cropFrame: {
-        top, left, width, height
-      }
-    });
+  onDone = () => {
+    this.cropRef.onCrop();
+  };
+
+  handleCrop = (uri) => {
+    this.setState({ uri });
   };
 
   renderCropView = () => {
-    const { imageURI } = this.state;
-    if (imageURI !== null) {
+    const { uri, imageSize } = this.state;
+    if (uri !== null) {
       return (
         <View style={styles.cropContainer}>
           <Crop
-            imageURI={imageURI}
-            onChangeCropFrame={this.onChangeCropFrame}
+            ref={(ref) => this.cropRef = ref}
+            image={uri}
+            onCrop={this.handleCrop}
+            initialWidth=
+              {imageSize.width < 500 && IMAGE_SIZE.width < 250 ? 250 : IMAGE_SIZE.width }
+            initialHeight=
+              {imageSize.height < 500 && IMAGE_SIZE.height < 250 ? 250 : IMAGE_SIZE.height}
+            minWidth={imageSize.width}
+            minHeight={imageSize.height}
+            // postCropWidth={300}
+            // postCropHeight={480}
           />
         </View>
       );
